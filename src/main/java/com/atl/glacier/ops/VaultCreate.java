@@ -1,39 +1,47 @@
 package com.atl.glacier.ops;
-
-import java.io.IOException;
-import java.util.List;
-
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.services.glacier.AmazonGlacierClient;
-import com.amazonaws.services.glacier.model.CreateVaultRequest;
-import com.amazonaws.services.glacier.model.CreateVaultResult;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.glacier.GlacierClient;
+import software.amazon.awssdk.services.glacier.model.CreateVaultRequest;
+import software.amazon.awssdk.services.glacier.model.CreateVaultResponse;
+import software.amazon.awssdk.services.glacier.model.GlacierException;
 
 public class VaultCreate {
 
-    public static AmazonGlacierClient client;
+    public static void main(String[] args) {
 
-    public static void main(String[] args) throws IOException {
+        final String USAGE = "\n" +
+                "Usage: " +
+                "CreateVault <vaultName>\n\n" +
+                "Where:\n" +
+                "  vaultName - the name of the vault to create.\n\n";
 
-        ProfileCredentialsProvider credentials = new ProfileCredentialsProvider();
-
-        client = new AmazonGlacierClient(credentials);
-        client.setEndpoint("https://glacier.us-east-1.amazonaws.com/");
-
-        String vaultName = "exampleVault";
-
-        try {
-            vaultCreate(client, vaultName);
-        } catch (Exception e) {
-            System.err.println("Vault operation failed." + e.getMessage());
+        if (args.length != 1) {
+            System.out.println(USAGE);
+            System.exit(1);
         }
+
+        String vaultName = args[0];
+        GlacierClient glacier = GlacierClient.builder()
+                .region(Region.US_EAST_1)
+                .build();
+
+        createGlacierVault(glacier, vaultName);
+        glacier.close();
     }
 
-    private static void vaultCreate(AmazonGlacierClient client, String vaultName) {
-        CreateVaultRequest createVaultRequest = new CreateVaultRequest()
-                .withAccountId("-")
-                .withVaultName(vaultName);
-        CreateVaultResult createVaultResult = client.createVault(createVaultRequest);
+    public static void createGlacierVault(GlacierClient glacier, String vaultName ) {
 
-        System.out.println("Created vault successfully: " + createVaultResult.getLocation());
+        try {
+            CreateVaultRequest vaultRequest = CreateVaultRequest.builder()
+                    .vaultName(vaultName)
+                    .build();
+
+            CreateVaultResponse createVaultResult = glacier.createVault(vaultRequest);
+            System.out.println("The URI of the new vault is " + createVaultResult.location());
+        } catch(GlacierException e) {
+            System.err.println(e.awsErrorDetails().errorMessage());
+            System.exit(1);
+
+        }
     }
 }

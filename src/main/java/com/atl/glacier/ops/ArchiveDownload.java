@@ -1,45 +1,65 @@
 package com.atl.glacier.ops;
 
-import java.io.File;
-import java.io.IOException;
-
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.services.glacier.AmazonGlacierClient;
-import com.amazonaws.services.glacier.transfer.ArchiveTransferManager;
-import com.amazonaws.services.sns.AmazonSNSClient;
-import com.amazonaws.services.sqs.AmazonSQSClient;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.glacier.GlacierClient;
+import software.amazon.awssdk.services.glacier.model.GlacierException;
+import software.amazon.awssdk.services.glacier.model.InitiateJobRequest;
+import software.amazon.awssdk.services.glacier.model.InitiateJobResponse;
+import software.amazon.awssdk.services.glacier.model.JobParameters;
 
 
 public class ArchiveDownload {
-    public static String vaultName = "exampleVault";
-    public static String archiveId = "*** provide archive ID ***";
-    public static String downloadFilePath  = "*** provide location to download archive ***";
+    public static void main(String[] args) {
 
-    public static AmazonGlacierClient glacierClient;
-    public static AmazonSQSClient sqsClient;
-    public static AmazonSNSClient snsClient;
+        final String USAGE = "\n" +
+                "ArchiveDownload - start a job to retrieve vault inventory\n\n" +
+                "Usage: ArchiveDownload <vaultName> <accountId>\n\n" +
+                "Where:\n" +
+                "  vaultName - the name of the vault.\n" +
+                "  accountId - the account ID value.\n\n";
 
-    public static void main(String[] args) throws IOException {
+        if (args.length != 2) {
+            System.out.println(USAGE);
+            System.exit(1);
+        }
 
-        ProfileCredentialsProvider credentials = new ProfileCredentialsProvider();
+        String vaultName = args[0];
+        String accountId = args[1];
 
-        glacierClient = new AmazonGlacierClient(credentials);
+        GlacierClient glacier = GlacierClient.builder()
+                .region(Region.US_EAST_1)
+                .build();
 
-        sqsClient = new AmazonSQSClient(credentials);
-        snsClient = new AmazonSNSClient(credentials);
-        glacierClient.setEndpoint("glacier.us-west-2.amazonaws.com");
-        sqsClient.setEndpoint("sqs.us-west-2.amazonaws.com");
-        snsClient.setEndpoint("sns.us-west-2.amazonaws.com");
+        createJob(glacier, vaultName, accountId) ;
+        glacier.close();
+    }
+
+    public static void createJob(GlacierClient glacier, String vaultName, String accountId) {
 
         try {
-            ArchiveTransferManager atm = new ArchiveTransferManager(glacierClient, sqsClient, snsClient);
 
-            atm.download(vaultName, archiveId, new File(downloadFilePath));
-            System.out.println("Downloaded file to " + downloadFilePath);
+            JobParameters job = JobParameters.builder()
+                    .type("inventory-retrieval")
+                    .build();
 
-        } catch (Exception e)
-        {
-            System.err.println(e);
+            InitiateJobRequest initJob = InitiateJobRequest.builder()
+                    .jobParameters(job)
+                    .accountId(accountId)
+                    .vaultName(vaultName)
+                    .build();
+
+            InitiateJobResponse response = glacier.initiateJob(initJob);
+
+            System.out.println("The job ID is: " +response.jobId()) ;
+            System.out.println("The relative URI path of the job is: " +response.location()) ;
+
+        } catch(GlacierException e) {
+            System.err.println(e.awsErrorDetails().errorMessage());
+            System.exit(1);
+
         }
+        System.out.println("Done");
     }
 }
+
+

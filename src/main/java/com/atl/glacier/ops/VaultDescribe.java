@@ -1,43 +1,54 @@
 package com.atl.glacier.ops;
 
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
-import com.amazonaws.services.glacier.AmazonGlacierClient;
-import com.amazonaws.services.glacier.model.DescribeVaultRequest;
-import com.amazonaws.services.glacier.model.DescribeVaultResult;
-
-import java.io.IOException;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.glacier.GlacierClient;
+import software.amazon.awssdk.services.glacier.model.DescribeVaultRequest;
+import software.amazon.awssdk.services.glacier.model.DescribeVaultResponse;
+import software.amazon.awssdk.services.glacier.model.GlacierException;
 
 public class VaultDescribe {
-    public static AmazonGlacierClient client;
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
 
-        ProfileCredentialsProvider credentials = new ProfileCredentialsProvider();
+        final String USAGE = "\n" +
+                "Usage: " +
+                "DescribeVault <vaultName>\n\n" +
+                "Where:\n" +
+                "  vaultName - the name of the vault to describe.\n\n";
 
-        client = new AmazonGlacierClient(credentials);
-        client.setEndpoint("https://glacier.us-east-1.amazonaws.com/");
+        if (args.length != 1) {
+            System.out.println(USAGE);
+            System.exit(1);
+        }
 
-        String vaultName = "exampleVault";
+        String vaultName = args[0];
+        GlacierClient glacier = GlacierClient.builder()
+                .region(Region.US_EAST_1)
+                .build();
+
+        vaultDescribe(glacier, vaultName);
+        glacier.close();
+    }
+
+    public static void vaultDescribe(GlacierClient glacier, String vaultName) {
 
         try {
-            describeVault(client, vaultName);
+            DescribeVaultRequest describeVaultRequest = DescribeVaultRequest.builder()
+                    .vaultName(vaultName)
+                    .build();
 
-        } catch (Exception e) {
-            System.err.println("Vault operation failed." + e.getMessage());
+            DescribeVaultResponse desVaultResult = glacier.describeVault(describeVaultRequest);
+            System.out.println("Describing the vault: " + vaultName);
+            System.out.print(
+                    "CreationDate: " + desVaultResult.creationDate() +
+                            "\nLastInventoryDate: " + desVaultResult.lastInventoryDate() +
+                            "\nNumberOfArchives: " + desVaultResult.numberOfArchives() +
+                            "\nSizeInBytes: " + desVaultResult.sizeInBytes() +
+                            "\nVaultARN: " + desVaultResult.vaultARN() +
+                            "\nVaultName: " + desVaultResult.vaultName());
+        } catch (GlacierException e) {
+            System.err.println(e.awsErrorDetails().errorMessage());
+            System.exit(1);
         }
-    }
-    private static void describeVault(AmazonGlacierClient client, String vaultName) {
-        DescribeVaultRequest describeVaultRequest = new DescribeVaultRequest()
-                .withVaultName(vaultName);
-        DescribeVaultResult describeVaultResult  = client.describeVault(describeVaultRequest);
-
-        System.out.println("Describing the vault: " + vaultName);
-        System.out.print(
-                "CreationDate: " + describeVaultResult.getCreationDate() +
-                        "\nLastInventoryDate: " + describeVaultResult.getLastInventoryDate() +
-                        "\nNumberOfArchives: " + describeVaultResult.getNumberOfArchives() +
-                        "\nSizeInBytes: " + describeVaultResult.getSizeInBytes() +
-                        "\nVaultARN: " + describeVaultResult.getVaultARN() +
-                        "\nVaultName: " + describeVaultResult.getVaultName());
     }
 }
